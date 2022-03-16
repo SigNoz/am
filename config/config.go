@@ -1052,3 +1052,10 @@ func (m Matchers) MarshalJSON() ([]byte, error) {
 	}
 	return json.Marshal(result)
 }
+
+// RouteAndReceiver is useful when managing a receiver 
+// and curresponding routes in same operation
+type RouteAndReceiver struct {
+	*Route
+	*Receiver
+}
