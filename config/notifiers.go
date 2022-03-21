@@ -432,8 +432,9 @@ type SlackConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-
-	APIURL     *SecretURL `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	// Changing from SecretURL to URL, for supporting persistence of 
+	// runtime config changes
+	APIURL     *URL `yaml:"api_url,omitempty" json:"api_url,omitempty"`
 	APIURLFile string     `yaml:"api_url_file,omitempty" json:"api_url_file,omitempty"`
 
 	// Slack channel override, (like #other-channel or @username).
@@ -490,6 +491,18 @@ type WebhookConfig struct {
 	MaxAlerts uint64 `yaml:"max_alerts" json:"max_alerts"`
 }
 
+func (c *WebhookConfig) Validate() error {
+	if c.URL == nil {
+		return fmt.Errorf("url is missing on webconfig")
+	}
+	if c.HTTPConfig != nil {
+		if err := c.HTTPConfig.Validate(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultWebhookConfig
@@ -508,6 +521,7 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			return fmt.Errorf("scheme required for webhook url")
 		}
 	}
+
 	return nil
 }
 
