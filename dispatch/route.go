@@ -23,15 +23,16 @@ import (
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/constants"
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
 // DefaultRouteOpts are the defaulting routing options which apply
 // to the root route of a routing tree.
 var DefaultRouteOpts = RouteOpts{
-	GroupWait:         30 * time.Second,
-	GroupInterval:     5 * time.Minute,
-	RepeatInterval:    4 * time.Hour,
+	GroupWait:         constants.RouteOptsGroupWait(),
+	GroupInterval:     constants.RouteOptsGroupInterval(),
+	RepeatInterval:    constants.RouteOptsRepeatInterval(),
 	GroupBy:           map[model.LabelName]struct{}{},
 	GroupByAll:        false,
 	MuteTimeIntervals: []string{},
@@ -118,7 +119,8 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 	sort.Sort(matchers)
 
 	opts.MuteTimeIntervals = cr.MuteTimeIntervals
-	opts.ActiveTimeIntervals = cr.ActiveTimeIntervals
+
+	fmt.Println("RouteOpts:", opts)
 
 	route := &Route{
 		parent:    parent,
