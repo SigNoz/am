@@ -322,9 +322,12 @@ type ConfigOpts struct {
 	GroupInterval  *time.Duration
 	GroupWait      *time.Duration
 	RepeatInterval *time.Duration
+	GroupByStr     []string
 }
 
-// InitConfig returns a config at the time of initialization.
+// InitConfig returns a config at the time of initialization,
+// it does not however return a validated config. you must call
+// config.validate() to default and valdiate the params
 func InitConfig(opts *ConfigOpts) *Config {
 	global := DefaultGlobalConfig()
 
@@ -334,6 +337,12 @@ func InitConfig(opts *ConfigOpts) *Config {
 
 	route := &Route{
 		Receiver: "default-receiver",
+	}
+
+	if len(opts.GroupByStr) > 0 {
+		route.GroupByStr = opts.GroupByStr
+	} else {
+		route.GroupByStr = []string{"alertname"}
 	}
 
 	if opts.GroupInterval != nil {
@@ -357,16 +366,6 @@ func InitConfig(opts *ConfigOpts) *Config {
 		Receivers: []*Receiver{
 			&Receiver{
 				Name: "default-receiver",
-				EmailConfigs: []*EmailConfig{
-					&EmailConfig{
-						NotifierConfig: NotifierConfig{
-							VSendResolved: false,
-						},
-						To:   "default@email.com",
-						From: "alertmanager@example.org",
-						HTML: DefaultEmailConfig.HTML,
-					},
-				},
 			},
 		},
 	}
@@ -661,8 +660,8 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("root route must not have any mute time intervals")
 	}
 
-	if len(c.Route.ActiveTimeIntervals) > 0 {
-		return fmt.Errorf("root route must not have any active time intervals")
+	if err := c.Route.Validate(); err != nil {
+		return err
 	}
 
 	// Validate that all receivers used in the routing tree are defined.
@@ -948,29 +947,27 @@ type GlobalConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	SMTPFrom             string   `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
-	SMTPHello            string   `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
-	SMTPSmarthost        HostPort `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
-	SMTPAuthUsername     string   `yaml:"smtp_auth_username,omitempty" json:"smtp_auth_username,omitempty"`
-	SMTPAuthPassword     Secret   `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
-	SMTPAuthPasswordFile string   `yaml:"smtp_auth_password_file,omitempty" json:"smtp_auth_password_file,omitempty"`
-	SMTPAuthSecret       Secret   `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
-	SMTPAuthIdentity     string   `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
-	SMTPRequireTLS       bool     `yaml:"smtp_require_tls" json:"smtp_require_tls,omitempty"`
-	SlackAPIURL          *URL     `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
-	SlackAPIURLFile      string   `yaml:"slack_api_url_file,omitempty" json:"slack_api_url_file,omitempty"`
-	PagerdutyURL         *URL     `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
-	OpsGenieAPIURL       *URL     `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
-	OpsGenieAPIKey       Secret   `yaml:"opsgenie_api_key,omitempty" json:"opsgenie_api_key,omitempty"`
-	OpsGenieAPIKeyFile   string   `yaml:"opsgenie_api_key_file,omitempty" json:"opsgenie_api_key_file,omitempty"`
-	WeChatAPIURL         *URL     `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
-	WeChatAPISecret      Secret   `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
-	WeChatAPICorpID      string   `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
-	VictorOpsAPIURL      *URL     `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
-	VictorOpsAPIKey      Secret   `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
-	VictorOpsAPIKeyFile  string   `yaml:"victorops_api_key_file,omitempty" json:"victorops_api_key_file,omitempty"`
-	TelegramAPIUrl       *URL     `yaml:"telegram_api_url,omitempty" json:"telegram_api_url,omitempty"`
-	WebexAPIURL          *URL     `yaml:"webex_api_url,omitempty" json:"webex_api_url,omitempty"`
+	SMTPFrom         string   `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
+	SMTPHello        string   `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
+	SMTPSmarthost    HostPort `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
+	SMTPAuthUsername string   `yaml:"smtp_auth_username,omitempty" json:"smtp_auth_username,omitempty"`
+	SMTPAuthPassword Secret   `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
+	SMTPAuthSecret   Secret   `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
+	SMTPAuthIdentity string   `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
+	SMTPRequireTLS   bool     `yaml:"smtp_require_tls" json:"smtp_require_tls,omitempty"`
+	// Changing from SecretURL to URL, for supporting persistence of
+	// runtime config changes
+	SlackAPIURL        *URL   `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
+	SlackAPIURLFile    string `yaml:"slack_api_url_file,omitempty" json:"slack_api_url_file,omitempty"`
+	PagerdutyURL       *URL   `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
+	OpsGenieAPIURL     *URL   `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
+	OpsGenieAPIKey     Secret `yaml:"opsgenie_api_key,omitempty" json:"opsgenie_api_key,omitempty"`
+	OpsGenieAPIKeyFile string `yaml:"opsgenie_api_key_file,omitempty" json:"opsgenie_api_key_file,omitempty"`
+	WeChatAPIURL       *URL   `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
+	WeChatAPISecret    Secret `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
+	WeChatAPICorpID    string `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
+	VictorOpsAPIURL    *URL   `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
+	VictorOpsAPIKey    Secret `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for GlobalConfig.
@@ -1013,11 +1010,23 @@ func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(r)); err != nil {
 		return err
 	}
+	return r.Validate()
+}
+
+func (r *Route) Validate() error {
 
 	for k := range r.Match {
 		if !model.LabelNameRE.MatchString(k) {
 			return fmt.Errorf("invalid label name %q", k)
 		}
+	}
+
+	// make a dictionary of labels
+	groupBy := map[model.LabelName]struct{}{}
+
+	// popluate dictionary to de-dup labels
+	for _, ln := range r.GroupBy {
+		groupBy[ln] = struct{}{}
 	}
 
 	for _, l := range r.GroupByStr {
@@ -1028,21 +1037,17 @@ func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			if !labelName.IsValid() {
 				return fmt.Errorf("invalid label name %q in group_by list", l)
 			}
-			r.GroupBy = append(r.GroupBy, labelName)
+
+			if _, ok := groupBy[labelName]; !ok {
+				// found new label
+				r.GroupBy = append(r.GroupBy, labelName)
+				groupBy[labelName] = struct{}{}
+			}
 		}
 	}
 
 	if len(r.GroupBy) > 0 && r.GroupByAll {
 		return fmt.Errorf("cannot have wildcard group_by (`...`) and other other labels at the same time")
-	}
-
-	groupBy := map[model.LabelName]struct{}{}
-
-	for _, ln := range r.GroupBy {
-		if _, ok := groupBy[ln]; ok {
-			return fmt.Errorf("duplicated label %q in group_by", ln)
-		}
-		groupBy[ln] = struct{}{}
 	}
 
 	if r.GroupInterval != nil && time.Duration(*r.GroupInterval) == time.Duration(0) {

@@ -213,6 +213,7 @@ func run() int {
 		groupInterval   = kingpin.Flag("config.groupInterval", "How long to wait before sending group notifications again").Default("5m").Duration()
 		groupWait       = kingpin.Flag("config.groupWait", "How long to wait before sending first group notification").Default("30s").Duration()
 		repeatInterval  = kingpin.Flag("config.repeatInterval", "Repeat interval").Default("4h").Duration()
+		groupBy         = kingpin.Flag("config.groupBy", "Group notifications together in each interval").Default("alertname").Strings()
 
 		dataDir         = kingpin.Flag("storage.path", "Base path for data storage.").Default("data/").String()
 		retention       = kingpin.Flag("data.retention", "How long to keep data for.").Default("120h").Duration()
@@ -454,6 +455,7 @@ func run() int {
 		GroupWait:      groupWait,
 		GroupInterval:  groupInterval,
 		RepeatInterval: repeatInterval,
+		GroupByStr:     *groupBy,
 	}
 
 	configCoordinator := config.NewCoordinator(
