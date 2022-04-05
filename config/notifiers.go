@@ -14,6 +14,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/textproto"
 	"regexp"
@@ -22,6 +23,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/sigv4"
 )
@@ -86,7 +88,7 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: false,
 		},
-		Color:      `{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}`,
+		Color:      `{{ if eq .Status "firing" }}{{with index .Alerts 0 }}{{if eq .Labels.severity "critical"}}danger{{else}}warning{{end}}{{end}}{{ else }}good{{ end }}`,
 		Username:   `{{ template "slack.default.username" . }}`,
 		Title:      `{{ template "slack.default.title" . }}`,
 		TitleLink:  `{{ template "slack.default.titlelink" . }}`,
@@ -320,6 +322,20 @@ type PagerdutyImage struct {
 	Href string `yaml:"href,omitempty" json:"href,omitempty"`
 }
 
+// UnmarshalJSON implements JSON interface and includes default params,
+// the interface has been added to inject default params when
+// the config is created through API
+func (c *PagerdutyConfig) UnmarshalJSON(data []byte) error {
+	s := DefaultPagerdutyConfig
+	type plain PagerdutyConfig
+	sp := (plain)(s)
+	if err := json.Unmarshal(data, &sp); err != nil {
+		return err
+	}
+	*c = (PagerdutyConfig)(sp)
+	return c.Validate()
+}
+
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultPagerdutyConfig
@@ -327,7 +343,11 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.RoutingKey == "" && c.ServiceKey == "" && c.RoutingKeyFile == "" && c.ServiceKeyFile == "" {
+	return c.Validate()
+}
+
+func (c *PagerdutyConfig) Validate() error {
+	if c.RoutingKey == "" && c.ServiceKey == "" {
 		return fmt.Errorf("missing service or routing key in PagerDuty config")
 	}
 	if len(c.RoutingKey) > 0 && len(c.RoutingKeyFile) > 0 {
@@ -468,6 +488,20 @@ type SlackConfig struct {
 	Actions     []*SlackAction `yaml:"actions,omitempty" json:"actions,omitempty"`
 }
 
+// UnmarshalJSON implements JSON interface and includes default params,
+// the interface has been added to inject default params when
+// the config is created through API
+func (c *SlackConfig) UnmarshalJSON(data []byte) error {
+	s := DefaultSlackConfig
+	type plain SlackConfig
+	sp := (plain)(s)
+	if err := json.Unmarshal(data, &sp); err != nil {
+		return err
+	}
+	*c = (SlackConfig)(sp)
+	return c.Validate()
+}
+
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultSlackConfig
@@ -521,6 +555,20 @@ func (c *WebhookConfig) Validate() error {
 		}
 	}
 	return nil
+}
+
+// UnmarshalJSON implements JSON interface and includes default params,
+// the interface has been added to inject default params when
+// the config is created through API
+func (c *WebhookConfig) UnmarshalJSON(data []byte) error {
+	s := DefaultWebhookConfig
+	type plain WebhookConfig
+	sp := (plain)(s)
+	if err := json.Unmarshal(data, &sp); err != nil {
+		return err
+	}
+	*c = (WebhookConfig)(sp)
+	return c.Validate()
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
