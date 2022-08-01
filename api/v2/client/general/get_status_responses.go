@@ -53,8 +53,7 @@ func NewGetStatusOK() *GetStatusOK {
 	return &GetStatusOK{}
 }
 
-/*
-GetStatusOK describes a response with status code 200, with default header values.
+/* GetStatusOK describes a response with status code 200, with default header values.
 
 Get status response
 */
@@ -90,11 +89,6 @@ func (o *GetStatusOK) IsCode(code int) bool {
 func (o *GetStatusOK) Error() string {
 	return fmt.Sprintf("[GET /status][%d] getStatusOK  %+v", 200, o.Payload)
 }
-
-func (o *GetStatusOK) String() string {
-	return fmt.Sprintf("[GET /status][%d] getStatusOK  %+v", 200, o.Payload)
-}
-
 func (o *GetStatusOK) GetPayload() *models.AlertmanagerStatus {
 	return o.Payload
 }

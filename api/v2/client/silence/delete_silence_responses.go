@@ -63,8 +63,7 @@ func NewDeleteSilenceOK() *DeleteSilenceOK {
 	return &DeleteSilenceOK{}
 }
 
-/*
-DeleteSilenceOK describes a response with status code 200, with default header values.
+/* DeleteSilenceOK describes a response with status code 200, with default header values.
 
 Delete silence response
 */
@@ -165,8 +164,7 @@ func NewDeleteSilenceInternalServerError() *DeleteSilenceInternalServerError {
 	return &DeleteSilenceInternalServerError{}
 }
 
-/*
-DeleteSilenceInternalServerError describes a response with status code 500, with default header values.
+/* DeleteSilenceInternalServerError describes a response with status code 500, with default header values.
 
 Internal server error
 */
@@ -202,11 +200,6 @@ func (o *DeleteSilenceInternalServerError) IsCode(code int) bool {
 func (o *DeleteSilenceInternalServerError) Error() string {
 	return fmt.Sprintf("[DELETE /silence/{silenceID}][%d] deleteSilenceInternalServerError  %+v", 500, o.Payload)
 }
-
-func (o *DeleteSilenceInternalServerError) String() string {
-	return fmt.Sprintf("[DELETE /silence/{silenceID}][%d] deleteSilenceInternalServerError  %+v", 500, o.Payload)
-}
-
 func (o *DeleteSilenceInternalServerError) GetPayload() string {
 	return o.Payload
 }

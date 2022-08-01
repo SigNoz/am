@@ -53,8 +53,7 @@ func NewGetReceiversOK() *GetReceiversOK {
 	return &GetReceiversOK{}
 }
 
-/*
-GetReceiversOK describes a response with status code 200, with default header values.
+/* GetReceiversOK describes a response with status code 200, with default header values.
 
 Get receivers response
 */
@@ -90,11 +89,6 @@ func (o *GetReceiversOK) IsCode(code int) bool {
 func (o *GetReceiversOK) Error() string {
 	return fmt.Sprintf("[GET /receivers][%d] getReceiversOK  %+v", 200, o.Payload)
 }
-
-func (o *GetReceiversOK) String() string {
-	return fmt.Sprintf("[GET /receivers][%d] getReceiversOK  %+v", 200, o.Payload)
-}
-
 func (o *GetReceiversOK) GetPayload() []*models.Receiver {
 	return o.Payload
 }

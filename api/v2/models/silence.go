@@ -167,8 +167,6 @@ func (m *Silence) contextValidateMatchers(ctx context.Context, formats strfmt.Re
 	if err := m.Matchers.ContextValidate(ctx, formats); err != nil {
 		if ve, ok := err.(*errors.Validation); ok {
 			return ve.ValidateName("matchers")
-		} else if ce, ok := err.(*errors.CompositeError); ok {
-			return ce.ValidateName("matchers")
 		}
 		return err
 	}

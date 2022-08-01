@@ -65,8 +65,7 @@ func NewPostSilencesOK() *PostSilencesOK {
 	return &PostSilencesOK{}
 }
 
-/*
-PostSilencesOK describes a response with status code 200, with default header values.
+/* PostSilencesOK describes a response with status code 200, with default header values.
 
 Create / update silence response
 */
@@ -102,11 +101,6 @@ func (o *PostSilencesOK) IsCode(code int) bool {
 func (o *PostSilencesOK) Error() string {
 	return fmt.Sprintf("[POST /silences][%d] postSilencesOK  %+v", 200, o.Payload)
 }
-
-func (o *PostSilencesOK) String() string {
-	return fmt.Sprintf("[POST /silences][%d] postSilencesOK  %+v", 200, o.Payload)
-}
-
 func (o *PostSilencesOK) GetPayload() *PostSilencesOKBody {
 	return o.Payload
 }
@@ -128,8 +122,7 @@ func NewPostSilencesBadRequest() *PostSilencesBadRequest {
 	return &PostSilencesBadRequest{}
 }
 
-/*
-PostSilencesBadRequest describes a response with status code 400, with default header values.
+/* PostSilencesBadRequest describes a response with status code 400, with default header values.
 
 Bad request
 */
@@ -165,11 +158,6 @@ func (o *PostSilencesBadRequest) IsCode(code int) bool {
 func (o *PostSilencesBadRequest) Error() string {
 	return fmt.Sprintf("[POST /silences][%d] postSilencesBadRequest  %+v", 400, o.Payload)
 }
-
-func (o *PostSilencesBadRequest) String() string {
-	return fmt.Sprintf("[POST /silences][%d] postSilencesBadRequest  %+v", 400, o.Payload)
-}
-
 func (o *PostSilencesBadRequest) GetPayload() string {
 	return o.Payload
 }
@@ -189,8 +177,7 @@ func NewPostSilencesNotFound() *PostSilencesNotFound {
 	return &PostSilencesNotFound{}
 }
 
-/*
-PostSilencesNotFound describes a response with status code 404, with default header values.
+/* PostSilencesNotFound describes a response with status code 404, with default header values.
 
 A silence with the specified ID was not found
 */
@@ -226,11 +213,6 @@ func (o *PostSilencesNotFound) IsCode(code int) bool {
 func (o *PostSilencesNotFound) Error() string {
 	return fmt.Sprintf("[POST /silences][%d] postSilencesNotFound  %+v", 404, o.Payload)
 }
-
-func (o *PostSilencesNotFound) String() string {
-	return fmt.Sprintf("[POST /silences][%d] postSilencesNotFound  %+v", 404, o.Payload)
-}
-
 func (o *PostSilencesNotFound) GetPayload() string {
 	return o.Payload
 }

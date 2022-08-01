@@ -65,8 +65,7 @@ func NewGetAlertsOK() *GetAlertsOK {
 	return &GetAlertsOK{}
 }
 
-/*
-GetAlertsOK describes a response with status code 200, with default header values.
+/* GetAlertsOK describes a response with status code 200, with default header values.
 
 Get alerts response
 */
@@ -102,11 +101,6 @@ func (o *GetAlertsOK) IsCode(code int) bool {
 func (o *GetAlertsOK) Error() string {
 	return fmt.Sprintf("[GET /alerts][%d] getAlertsOK  %+v", 200, o.Payload)
 }
-
-func (o *GetAlertsOK) String() string {
-	return fmt.Sprintf("[GET /alerts][%d] getAlertsOK  %+v", 200, o.Payload)
-}
-
 func (o *GetAlertsOK) GetPayload() models.GettableAlerts {
 	return o.Payload
 }
@@ -126,8 +120,7 @@ func NewGetAlertsBadRequest() *GetAlertsBadRequest {
 	return &GetAlertsBadRequest{}
 }
 
-/*
-GetAlertsBadRequest describes a response with status code 400, with default header values.
+/* GetAlertsBadRequest describes a response with status code 400, with default header values.
 
 Bad request
 */
@@ -163,11 +156,6 @@ func (o *GetAlertsBadRequest) IsCode(code int) bool {
 func (o *GetAlertsBadRequest) Error() string {
 	return fmt.Sprintf("[GET /alerts][%d] getAlertsBadRequest  %+v", 400, o.Payload)
 }
-
-func (o *GetAlertsBadRequest) String() string {
-	return fmt.Sprintf("[GET /alerts][%d] getAlertsBadRequest  %+v", 400, o.Payload)
-}
-
 func (o *GetAlertsBadRequest) GetPayload() string {
 	return o.Payload
 }
@@ -187,8 +175,7 @@ func NewGetAlertsInternalServerError() *GetAlertsInternalServerError {
 	return &GetAlertsInternalServerError{}
 }
 
-/*
-GetAlertsInternalServerError describes a response with status code 500, with default header values.
+/* GetAlertsInternalServerError describes a response with status code 500, with default header values.
 
 Internal server error
 */
@@ -224,11 +211,6 @@ func (o *GetAlertsInternalServerError) IsCode(code int) bool {
 func (o *GetAlertsInternalServerError) Error() string {
 	return fmt.Sprintf("[GET /alerts][%d] getAlertsInternalServerError  %+v", 500, o.Payload)
 }
-
-func (o *GetAlertsInternalServerError) String() string {
-	return fmt.Sprintf("[GET /alerts][%d] getAlertsInternalServerError  %+v", 500, o.Payload)
-}
-
 func (o *GetAlertsInternalServerError) GetPayload() string {
 	return o.Payload
 }

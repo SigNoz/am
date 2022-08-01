@@ -215,8 +215,6 @@ func (m *GettableAlert) validateAnnotations(formats strfmt.Registry) error {
 		if err := m.Annotations.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("annotations")
-			} else if ce, ok := err.(*errors.CompositeError); ok {
-				return ce.ValidateName("annotations")
 			}
 			return err
 		}
@@ -352,8 +350,6 @@ func (m *GettableAlert) contextValidateAnnotations(ctx context.Context, formats 
 	if err := m.Annotations.ContextValidate(ctx, formats); err != nil {
 		if ve, ok := err.(*errors.Validation); ok {
 			return ve.ValidateName("annotations")
-		} else if ce, ok := err.(*errors.CompositeError); ok {
-			return ce.ValidateName("annotations")
 		}
 		return err
 	}
@@ -369,8 +365,6 @@ func (m *GettableAlert) contextValidateReceivers(ctx context.Context, formats st
 			if err := m.Receivers[i].ContextValidate(ctx, formats); err != nil {
 				if ve, ok := err.(*errors.Validation); ok {
 					return ve.ValidateName("receivers" + "." + strconv.Itoa(i))
-				} else if ce, ok := err.(*errors.CompositeError); ok {
-					return ce.ValidateName("receivers" + "." + strconv.Itoa(i))
 				}
 				return err
 			}
@@ -387,8 +381,6 @@ func (m *GettableAlert) contextValidateStatus(ctx context.Context, formats strfm
 		if err := m.Status.ContextValidate(ctx, formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("status")
-			} else if ce, ok := err.(*errors.CompositeError); ok {
-				return ce.ValidateName("status")
 			}
 			return err
 		}

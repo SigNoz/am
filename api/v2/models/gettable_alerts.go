@@ -85,3 +85,26 @@ func (m GettableAlerts) ContextValidate(ctx context.Context, formats strfmt.Regi
 	}
 	return nil
 }
+
+// ContextValidate validate this gettable alerts based on the context it is used
+func (m GettableAlerts) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
+	var res []error
+
+	for i := 0; i < len(m); i++ {
+
+		if m[i] != nil {
+			if err := m[i].ContextValidate(ctx, formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName(strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
+	}
+
+	if len(res) > 0 {
+		return errors.CompositeValidationError(res...)
+	}
+	return nil
+}

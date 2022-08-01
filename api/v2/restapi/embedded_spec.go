@@ -665,6 +665,13 @@ func init() {
               "type": "string",
               "format": "date-time"
             },
+            "receivers": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "x-omitempty": true
+              }
+            },
             "startsAt": {
               "type": "string",
               "format": "date-time"
@@ -1481,6 +1488,13 @@ func init() {
             "endsAt": {
               "type": "string",
               "format": "date-time"
+            },
+            "receivers": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "x-omitempty": true
+              }
             },
             "startsAt": {
               "type": "string",

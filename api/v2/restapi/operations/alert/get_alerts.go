@@ -43,8 +43,7 @@ func NewGetAlerts(ctx *middleware.Context, handler GetAlertsHandler) *GetAlerts 
 	return &GetAlerts{Context: ctx, Handler: handler}
 }
 
-/*
-	GetAlerts swagger:route GET /alerts alert getAlerts
+/* GetAlerts swagger:route GET /alerts alert getAlerts
 
 Get a list of alerts
 */

@@ -66,12 +66,10 @@ func NewDeleteSilenceParamsWithHTTPClient(client *http.Client) *DeleteSilencePar
 	}
 }
 
-/*
-DeleteSilenceParams contains all the parameters to send to the API endpoint
+/* DeleteSilenceParams contains all the parameters to send to the API endpoint
+   for the delete silence operation.
 
-	for the delete silence operation.
-
-	Typically these are written to a http.Request.
+   Typically these are written to a http.Request.
 */
 type DeleteSilenceParams struct {
 

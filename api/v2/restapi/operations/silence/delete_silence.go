@@ -43,8 +43,7 @@ func NewDeleteSilence(ctx *middleware.Context, handler DeleteSilenceHandler) *De
 	return &DeleteSilence{Context: ctx, Handler: handler}
 }
 
-/*
-	DeleteSilence swagger:route DELETE /silence/{silenceID} silence deleteSilence
+/* DeleteSilence swagger:route DELETE /silence/{silenceID} silence deleteSilence
 
 Delete a silence by its ID
 */
