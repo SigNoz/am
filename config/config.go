@@ -249,15 +249,6 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		for _, cfg := range receiver.SNSConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
-		for _, cfg := range receiver.TelegramConfigs {
-			cfg.HTTPConfig.SetDirectory(baseDir)
-		}
-		for _, cfg := range receiver.DiscordConfigs {
-			cfg.HTTPConfig.SetDirectory(baseDir)
-		}
-		for _, cfg := range receiver.WebexConfigs {
-			cfg.HTTPConfig.SetDirectory(baseDir)
-		}
 		for _, cfg := range receiver.MSTeamsConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
@@ -602,35 +593,6 @@ func (c *Config) Validate() error {
 		for _, sns := range rcv.SNSConfigs {
 			if sns.HTTPConfig == nil {
 				sns.HTTPConfig = c.Global.HTTPConfig
-			}
-		}
-
-		for _, telegram := range rcv.TelegramConfigs {
-			if telegram.HTTPConfig == nil {
-				telegram.HTTPConfig = c.Global.HTTPConfig
-			}
-			if telegram.APIUrl == nil {
-				telegram.APIUrl = c.Global.TelegramAPIUrl
-			}
-		}
-		for _, discord := range rcv.DiscordConfigs {
-			if discord.HTTPConfig == nil {
-				discord.HTTPConfig = c.Global.HTTPConfig
-			}
-			if discord.WebhookURL == nil {
-				return fmt.Errorf("no discord webhook URL provided")
-			}
-		}
-		for _, webex := range rcv.WebexConfigs {
-			if webex.HTTPConfig == nil {
-				webex.HTTPConfig = c.Global.HTTPConfig
-			}
-			if webex.APIURL == nil {
-				if c.Global.WebexAPIURL == nil {
-					return fmt.Errorf("no global Webex URL set")
-				}
-
-				webex.APIURL = c.Global.WebexAPIURL
 			}
 		}
 		for _, msteams := range rcv.MSTeamsConfigs {
@@ -1132,9 +1094,7 @@ type Receiver struct {
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
 	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
 	SNSConfigs       []*SNSConfig       `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
-	TelegramConfigs  []*TelegramConfig  `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
-	WebexConfigs     []*WebexConfig     `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
-	MSTeamsConfigs   []*MSTeamsConfig   `yaml:"msteams_configs,omitempty" json:"teams_configs,omitempty"`
+	MSTeamsConfigs   []*MSTeamsConfig   `yaml:"msteams_configs,omitempty" json:"msteams_configs,omitempty"`
 }
 
 func (c *Receiver) Validate() error {

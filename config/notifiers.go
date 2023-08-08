@@ -16,7 +16,6 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"net/textproto"
 	"regexp"
 	"strings"
 	"text/template"
@@ -156,15 +155,6 @@ var (
 		},
 		Subject: `{{ template "sns.default.subject" . }}`,
 		Message: `{{ template "sns.default.message" . }}`,
-	}
-
-	DefaultTelegramConfig = TelegramConfig{
-		NotifierConfig: NotifierConfig{
-			VSendResolved: true,
-		},
-		DisableNotifications: false,
-		Message:              `{{ template "telegram.default.message" . }}`,
-		ParseMode:            "HTML",
 	}
 
 	DefaultMSTeamsConfig = MSTeamsConfig{
