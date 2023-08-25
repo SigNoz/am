@@ -14,14 +14,15 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
-	"net/textproto"
 	"regexp"
 	"strings"
 	"text/template"
 	"time"
 
 	"github.com/pkg/errors"
+
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/sigv4"
 )
@@ -86,7 +87,7 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: false,
 		},
-		Color:      `{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}`,
+		Color:      `{{ if eq .Status "firing" }}{{with index .Alerts 0 }}{{if eq .Labels.severity "critical"}}danger{{else}}warning{{end}}{{end}}{{ else }}good{{ end }}`,
 		Username:   `{{ template "slack.default.username" . }}`,
 		Title:      `{{ template "slack.default.title" . }}`,
 		TitleLink:  `{{ template "slack.default.titlelink" . }}`,
@@ -154,15 +155,6 @@ var (
 		},
 		Subject: `{{ template "sns.default.subject" . }}`,
 		Message: `{{ template "sns.default.message" . }}`,
-	}
-
-	DefaultTelegramConfig = TelegramConfig{
-		NotifierConfig: NotifierConfig{
-			VSendResolved: true,
-		},
-		DisableNotifications: false,
-		Message:              `{{ template "telegram.default.message" . }}`,
-		ParseMode:            "HTML",
 	}
 
 	DefaultMSTeamsConfig = MSTeamsConfig{
@@ -258,6 +250,14 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
+
+	return c.Validate()
+}
+
+// Validate confirms the structure of Emailconfig and fills in
+// gaps that can be fixed. Originally part of UnmarshalYAML(),
+// moved here as we no longer use YAML files
+func (c *EmailConfig) Validate() error {
 	if c.To == "" {
 		return fmt.Errorf("missing to address in email config")
 	}
@@ -312,6 +312,20 @@ type PagerdutyImage struct {
 	Href string `yaml:"href,omitempty" json:"href,omitempty"`
 }
 
+// UnmarshalJSON implements JSON interface and includes default params,
+// the interface has been added to inject default params when
+// the config is created through API
+func (c *PagerdutyConfig) UnmarshalJSON(data []byte) error {
+	s := DefaultPagerdutyConfig
+	type plain PagerdutyConfig
+	sp := (plain)(s)
+	if err := json.Unmarshal(data, &sp); err != nil {
+		return err
+	}
+	*c = (PagerdutyConfig)(sp)
+	return c.Validate()
+}
+
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultPagerdutyConfig
@@ -319,7 +333,11 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.RoutingKey == "" && c.ServiceKey == "" && c.RoutingKeyFile == "" && c.ServiceKeyFile == "" {
+	return c.Validate()
+}
+
+func (c *PagerdutyConfig) Validate() error {
+	if c.RoutingKey == "" && c.ServiceKey == "" {
 		return fmt.Errorf("missing service or routing key in PagerDuty config")
 	}
 	if len(c.RoutingKey) > 0 && len(c.RoutingKeyFile) > 0 {
@@ -432,9 +450,10 @@ type SlackConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-
-	APIURL     *SecretURL `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-	APIURLFile string     `yaml:"api_url_file,omitempty" json:"api_url_file,omitempty"`
+	// Changing from SecretURL to URL, for supporting persistence of
+	// runtime config changes
+	APIURL     *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	APIURLFile string `yaml:"api_url_file,omitempty" json:"api_url_file,omitempty"`
 
 	// Slack channel override, (like #other-channel or @username).
 	Channel  string `yaml:"channel,omitempty" json:"channel,omitempty"`
@@ -459,6 +478,20 @@ type SlackConfig struct {
 	Actions     []*SlackAction `yaml:"actions,omitempty" json:"actions,omitempty"`
 }
 
+// UnmarshalJSON implements JSON interface and includes default params,
+// the interface has been added to inject default params when
+// the config is created through API
+func (c *SlackConfig) UnmarshalJSON(data []byte) error {
+	s := DefaultSlackConfig
+	type plain SlackConfig
+	sp := (plain)(s)
+	if err := json.Unmarshal(data, &sp); err != nil {
+		return err
+	}
+	*c = (SlackConfig)(sp)
+	return c.Validate()
+}
+
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultSlackConfig
@@ -467,10 +500,17 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
+	return c.Validate()
+}
+
+// Validate checks the structure and confirms if
+// slack config is valid. Originally this code
+// was in UnmarshalYAML() but moved here as we
+// dont use YAML files
+func (c *SlackConfig) Validate() error {
 	if c.APIURL != nil && len(c.APIURLFile) > 0 {
 		return fmt.Errorf("at most one of api_url & api_url_file must be configured")
 	}
-
 	return nil
 }
 
@@ -490,6 +530,37 @@ type WebhookConfig struct {
 	MaxAlerts uint64 `yaml:"max_alerts" json:"max_alerts"`
 }
 
+func (c *WebhookConfig) Validate() error {
+	if c.URL == nil {
+		return fmt.Errorf("url is missing on webconfig")
+	}
+
+	if c.URL.Scheme != "https" && c.URL.Scheme != "http" {
+		return fmt.Errorf("scheme required for webhook url")
+	}
+
+	if c.HTTPConfig != nil {
+		if err := c.HTTPConfig.Validate(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// UnmarshalJSON implements JSON interface and includes default params,
+// the interface has been added to inject default params when
+// the config is created through API
+func (c *WebhookConfig) UnmarshalJSON(data []byte) error {
+	s := DefaultWebhookConfig
+	type plain WebhookConfig
+	sp := (plain)(s)
+	if err := json.Unmarshal(data, &sp); err != nil {
+		return err
+	}
+	*c = (WebhookConfig)(sp)
+	return c.Validate()
+}
+
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultWebhookConfig
@@ -497,18 +568,8 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.URL == nil && c.URLFile == "" {
-		return fmt.Errorf("one of url or url_file must be configured")
-	}
-	if c.URL != nil && c.URLFile != "" {
-		return fmt.Errorf("at most one of url & url_file must be configured")
-	}
-	if c.URL != nil {
-		if c.URL.Scheme != "https" && c.URL.Scheme != "http" {
-			return fmt.Errorf("scheme required for webhook url")
-		}
-	}
-	return nil
+
+	return c.Validate()
 }
 
 // WechatConfig configures notifications via Wechat.

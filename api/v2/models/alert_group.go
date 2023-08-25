@@ -106,8 +106,6 @@ func (m *AlertGroup) validateLabels(formats strfmt.Registry) error {
 		if err := m.Labels.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("labels")
-			} else if ce, ok := err.(*errors.CompositeError); ok {
-				return ce.ValidateName("labels")
 			}
 			return err
 		}
@@ -200,6 +198,72 @@ func (m *AlertGroup) contextValidateReceiver(ctx context.Context, formats strfmt
 				return ve.ValidateName("receiver")
 			} else if ce, ok := err.(*errors.CompositeError); ok {
 				return ce.ValidateName("receiver")
+			}
+			return err
+		}
+	}
+
+	return nil
+}
+
+// ContextValidate validate this alert group based on the context it is used
+func (m *AlertGroup) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
+	var res []error
+
+	if err := m.contextValidateAlerts(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.contextValidateLabels(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.contextValidateReceiver(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
+	if len(res) > 0 {
+		return errors.CompositeValidationError(res...)
+	}
+	return nil
+}
+
+func (m *AlertGroup) contextValidateAlerts(ctx context.Context, formats strfmt.Registry) error {
+
+	for i := 0; i < len(m.Alerts); i++ {
+
+		if m.Alerts[i] != nil {
+			if err := m.Alerts[i].ContextValidate(ctx, formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("alerts" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
+func (m *AlertGroup) contextValidateLabels(ctx context.Context, formats strfmt.Registry) error {
+
+	if err := m.Labels.ContextValidate(ctx, formats); err != nil {
+		if ve, ok := err.(*errors.Validation); ok {
+			return ve.ValidateName("labels")
+		}
+		return err
+	}
+
+	return nil
+}
+
+func (m *AlertGroup) contextValidateReceiver(ctx context.Context, formats strfmt.Registry) error {
+
+	if m.Receiver != nil {
+		if err := m.Receiver.ContextValidate(ctx, formats); err != nil {
+			if ve, ok := err.(*errors.Validation); ok {
+				return ve.ValidateName("receiver")
 			}
 			return err
 		}

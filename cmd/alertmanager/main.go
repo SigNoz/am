@@ -68,6 +68,8 @@ import (
 	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/alertmanager/ui"
+
+	"github.com/prometheus/alertmanager/integrations/queryservice"
 )
 
 var (
@@ -132,7 +134,8 @@ const defaultClusterAddr = "0.0.0.0:9094"
 
 // buildReceiverIntegrations builds a list of integration notifiers off of a
 // receiver config.
-func buildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logger log.Logger) ([]notify.Integration, error) {
+func buildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, logger log.Logger) ([]notify.Integration, error) {
+
 	var (
 		errs         types.MultiError
 		integrations []notify.Integration
@@ -173,19 +176,9 @@ func buildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logg
 	for i, c := range nc.SNSConfigs {
 		add("sns", i, c, func(l log.Logger) (notify.Notifier, error) { return sns.New(c, tmpl, l) })
 	}
-	for i, c := range nc.TelegramConfigs {
-		add("telegram", i, c, func(l log.Logger) (notify.Notifier, error) { return telegram.New(c, tmpl, l) })
-	}
-	for i, c := range nc.DiscordConfigs {
-		add("discord", i, c, func(l log.Logger) (notify.Notifier, error) { return discord.New(c, tmpl, l) })
-	}
-	for i, c := range nc.WebexConfigs {
-		add("webex", i, c, func(l log.Logger) (notify.Notifier, error) { return webex.New(c, tmpl, l) })
-	}
 	for i, c := range nc.MSTeamsConfigs {
 		add("msteams", i, c, func(l log.Logger) (notify.Notifier, error) { return msteams.New(c, tmpl, l) })
 	}
-
 	if errs.Len() > 0 {
 		return nil, &errs
 	}
@@ -203,11 +196,18 @@ func run() int {
 	}
 
 	var (
-		configFile          = kingpin.Flag("config.file", "Alertmanager configuration file name.").Default("alertmanager.yml").String()
-		dataDir             = kingpin.Flag("storage.path", "Base path for data storage.").Default("data/").String()
-		retention           = kingpin.Flag("data.retention", "How long to keep data for.").Default("120h").Duration()
-		maintenanceInterval = kingpin.Flag("data.maintenance-interval", "Interval between garbage collection and snapshotting to disk of the silences and the notification logs.").Default("15m").Duration()
-		alertGCInterval     = kingpin.Flag("alerts.gc-interval", "Interval between alert GC.").Default("30m").Duration()
+		queryServiceURL = kingpin.Flag("queryService.url", "Query service URL for retrieving config updates").Default("localhost:8080").String()
+		configFile      = kingpin.Flag("config.file", "Alertmanager configuration file name.").Default("alertmanager.yml").String()
+		configMode      = kingpin.Flag("config.from", "Config mode: file or qs").Default("qs").String()
+		resolveTimeout  = kingpin.Flag("config.resolveTimeout", "How long to wait before auto-resolving an alert").Default("5m").Duration()
+		groupInterval   = kingpin.Flag("config.groupInterval", "How long to wait before sending group notifications again").Default("5m").Duration()
+		groupWait       = kingpin.Flag("config.groupWait", "How long to wait before sending first group notification").Default("30s").Duration()
+		repeatInterval  = kingpin.Flag("config.repeatInterval", "Repeat interval").Default("4h").Duration()
+		groupBy         = kingpin.Flag("config.groupBy", "Group notifications together in each interval").Default("alertname").Strings()
+
+		dataDir         = kingpin.Flag("storage.path", "Base path for data storage.").Default("data/").String()
+		retention       = kingpin.Flag("data.retention", "How long to keep data for.").Default("120h").Duration()
+		alertGCInterval = kingpin.Flag("alerts.gc-interval", "Interval between alert GC.").Default("30m").Duration()
 
 		webConfig      = webflag.AddFlags(kingpin.CommandLine, ":9093")
 		externalURL    = kingpin.Flag("web.external-url", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.").String()
@@ -423,8 +423,34 @@ func run() int {
 	dispMetrics := dispatch.NewDispatcherMetrics(false, prometheus.DefaultRegisterer)
 	pipelineBuilder := notify.NewPipelineBuilder(prometheus.DefaultRegisterer)
 	configLogger := log.With(logger, "component", "configuration")
+
+	var configLoader config.ConfigLoader
+
+	if *configMode == "file" {
+		if configFile != nil {
+			configLoader = config.NewConfigFileLoader(*configFile)
+		} else {
+			panic(fmt.Errorf("config file must be provided when config.from = file"))
+		}
+	} else {
+		configLoader, err = queryservice.NewConfigLoader(queryServiceURL, configLogger)
+		if err != nil {
+			level.Error(logger).Log("msg", "failed to initiate config from query service", "err", err)
+			return 1
+		}
+	}
+
+	configOpts := &config.ConfigOpts{
+		ResolveTimeout: resolveTimeout,
+		GroupWait:      groupWait,
+		GroupInterval:  groupInterval,
+		RepeatInterval: repeatInterval,
+		GroupByStr:     *groupBy,
+	}
+
 	configCoordinator := config.NewCoordinator(
-		*configFile,
+		configOpts,
+		configLoader,
 		prometheus.DefaultRegisterer,
 		configLogger,
 	)
@@ -555,11 +581,19 @@ func run() int {
 		router = router.WithPrefix(*routePrefix)
 	}
 
+	// webReload intitiates config reload
 	webReload := make(chan chan error)
+
+	// updateConfigCh updates config on the disk
+	// and reloads the alert manager
+	updateConfigCh := make(chan interface{})
+	updateConfigErrCh := make(chan error)
 
 	ui.Register(router, webReload, logger)
 
-	mux := api.Register(router, *routePrefix)
+	// webReload is included to support reload of alert manager
+	// after addition of new route or receiver from handler (API)
+	mux := api.Register(router, *routePrefix, webReload, updateConfigCh, updateConfigErrCh)
 
 	srv := &http.Server{Handler: mux}
 	srvc := make(chan struct{})
@@ -582,6 +616,39 @@ func run() int {
 	)
 	signal.Notify(hup, syscall.SIGHUP)
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+
+		<-hupReady
+		for {
+			select {
+			case <-hup:
+				// ignore error, already logged in `reload()`
+				_ = configCoordinator.Reload()
+			case errc := <-webReload:
+				errc <- configCoordinator.Reload()
+			case changes := <-updateConfigCh:
+				if req, ok := changes.(*config.ConfigChangeRequest); ok {
+					switch req.Action {
+					case config.AddRouteAction:
+						// add route to disk config
+						updateConfigErrCh <- configCoordinator.AddRoute(req.Route, req.Receiver)
+					case config.EditRouteAction:
+						updateConfigErrCh <- configCoordinator.EditRoute(req.Route, req.Receiver)
+					case config.DeleteRouteAction:
+						updateConfigErrCh <- configCoordinator.DeleteRoute(req.Receiver.Name)
+					default:
+						updateConfigErrCh <- fmt.Errorf("functionality not implemented yet")
+					}
+				} else {
+					updateConfigErrCh <- fmt.Errorf("functionality not implemented yet")
+				}
+			}
+		}
+	}()
+
+	// Wait for reload or termination signals.
+	close(hupReady) // Unblock SIGHUP handler.
 
 	for {
 		select {

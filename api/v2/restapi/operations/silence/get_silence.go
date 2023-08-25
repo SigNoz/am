@@ -43,8 +43,7 @@ func NewGetSilence(ctx *middleware.Context, handler GetSilenceHandler) *GetSilen
 	return &GetSilence{Context: ctx, Handler: handler}
 }
 
-/*
-	GetSilence swagger:route GET /silence/{silenceID} silence getSilence
+/* GetSilence swagger:route GET /silence/{silenceID} silence getSilence
 
 Get a silence by its ID
 */

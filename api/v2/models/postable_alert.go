@@ -40,6 +40,9 @@ type PostableAlert struct {
 	// Format: date-time
 	EndsAt strfmt.DateTime `json:"endsAt,omitempty"`
 
+	// receivers
+	Receivers []string `json:"receivers"`
+
 	// starts at
 	// Format: date-time
 	StartsAt strfmt.DateTime `json:"startsAt,omitempty"`
@@ -55,6 +58,8 @@ func (m *PostableAlert) UnmarshalJSON(raw []byte) error {
 
 		EndsAt strfmt.DateTime `json:"endsAt,omitempty"`
 
+		Receivers []string `json:"receivers"`
+
 		StartsAt strfmt.DateTime `json:"startsAt,omitempty"`
 	}
 	if err := swag.ReadJSON(raw, &dataAO0); err != nil {
@@ -64,6 +69,8 @@ func (m *PostableAlert) UnmarshalJSON(raw []byte) error {
 	m.Annotations = dataAO0.Annotations
 
 	m.EndsAt = dataAO0.EndsAt
+
+	m.Receivers = dataAO0.Receivers
 
 	m.StartsAt = dataAO0.StartsAt
 
@@ -86,12 +93,16 @@ func (m PostableAlert) MarshalJSON() ([]byte, error) {
 
 		EndsAt strfmt.DateTime `json:"endsAt,omitempty"`
 
+		Receivers []string `json:"receivers"`
+
 		StartsAt strfmt.DateTime `json:"startsAt,omitempty"`
 	}
 
 	dataAO0.Annotations = m.Annotations
 
 	dataAO0.EndsAt = m.EndsAt
+
+	dataAO0.Receivers = m.Receivers
 
 	dataAO0.StartsAt = m.StartsAt
 
@@ -146,8 +157,6 @@ func (m *PostableAlert) validateAnnotations(formats strfmt.Registry) error {
 		if err := m.Annotations.Validate(formats); err != nil {
 			if ve, ok := err.(*errors.Validation); ok {
 				return ve.ValidateName("annotations")
-			} else if ce, ok := err.(*errors.CompositeError); ok {
-				return ce.ValidateName("annotations")
 			}
 			return err
 		}
@@ -206,8 +215,6 @@ func (m *PostableAlert) contextValidateAnnotations(ctx context.Context, formats 
 	if err := m.Annotations.ContextValidate(ctx, formats); err != nil {
 		if ve, ok := err.(*errors.Validation); ok {
 			return ve.ValidateName("annotations")
-		} else if ce, ok := err.(*errors.CompositeError); ok {
-			return ce.ValidateName("annotations")
 		}
 		return err
 	}

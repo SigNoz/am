@@ -65,8 +65,7 @@ func NewGetSilenceOK() *GetSilenceOK {
 	return &GetSilenceOK{}
 }
 
-/*
-GetSilenceOK describes a response with status code 200, with default header values.
+/* GetSilenceOK describes a response with status code 200, with default header values.
 
 Get silence response
 */
@@ -102,11 +101,6 @@ func (o *GetSilenceOK) IsCode(code int) bool {
 func (o *GetSilenceOK) Error() string {
 	return fmt.Sprintf("[GET /silence/{silenceID}][%d] getSilenceOK  %+v", 200, o.Payload)
 }
-
-func (o *GetSilenceOK) String() string {
-	return fmt.Sprintf("[GET /silence/{silenceID}][%d] getSilenceOK  %+v", 200, o.Payload)
-}
-
 func (o *GetSilenceOK) GetPayload() *models.GettableSilence {
 	return o.Payload
 }
@@ -128,8 +122,7 @@ func NewGetSilenceNotFound() *GetSilenceNotFound {
 	return &GetSilenceNotFound{}
 }
 
-/*
-GetSilenceNotFound describes a response with status code 404, with default header values.
+/* GetSilenceNotFound describes a response with status code 404, with default header values.
 
 A silence with the specified ID was not found
 */
@@ -179,8 +172,7 @@ func NewGetSilenceInternalServerError() *GetSilenceInternalServerError {
 	return &GetSilenceInternalServerError{}
 }
 
-/*
-GetSilenceInternalServerError describes a response with status code 500, with default header values.
+/* GetSilenceInternalServerError describes a response with status code 500, with default header values.
 
 Internal server error
 */
@@ -216,11 +208,6 @@ func (o *GetSilenceInternalServerError) IsCode(code int) bool {
 func (o *GetSilenceInternalServerError) Error() string {
 	return fmt.Sprintf("[GET /silence/{silenceID}][%d] getSilenceInternalServerError  %+v", 500, o.Payload)
 }
-
-func (o *GetSilenceInternalServerError) String() string {
-	return fmt.Sprintf("[GET /silence/{silenceID}][%d] getSilenceInternalServerError  %+v", 500, o.Payload)
-}
-
 func (o *GetSilenceInternalServerError) GetPayload() string {
 	return o.Payload
 }

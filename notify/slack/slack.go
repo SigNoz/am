@@ -24,7 +24,6 @@ import (
 	"strings"
 
 	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 
@@ -50,7 +49,7 @@ type Notifier struct {
 
 // New returns a new Slack notification handler.
 func New(c *config.SlackConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "slack", httpOpts...)
+	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "slack", append(httpOpts, commoncfg.WithHTTP2Disabled())...)
 	if err != nil {
 		return nil, err
 	}
@@ -106,18 +105,15 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	} else {
 		markdownIn = n.conf.MrkdwnIn
 	}
-
-	title, truncated := notify.TruncateInRunes(tmplText(n.conf.Title), maxTitleLenRunes)
-	if truncated {
-		key, err := notify.ExtractGroupKey(ctx)
-		if err != nil {
-			return false, err
-		}
-		level.Warn(n.logger).Log("msg", "Truncated title", "key", key, "max_runes", maxTitleLenRunes)
+	var titleLink string
+	if data.ExternalURL != "" {
+		titleLink = data.ExternalURL
+	} else {
+		titleLink = tmplText(n.conf.TitleLink)
 	}
 	att := &attachment{
-		Title:      title,
-		TitleLink:  tmplText(n.conf.TitleLink),
+		Title:      tmplText(n.conf.Title),
+		TitleLink:  titleLink,
 		Pretext:    tmplText(n.conf.Pretext),
 		Text:       tmplText(n.conf.Text),
 		Fallback:   tmplText(n.conf.Fallback),
@@ -206,7 +202,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		u = strings.TrimSpace(string(content))
 	}
 
-	resp, err := n.postJSONFunc(ctx, n.client, u, &buf)
+	resp, err := notify.PostJSON(ctx, n.client, u, &buf)
 	if err != nil {
 		return true, notify.RedactURL(err)
 	}

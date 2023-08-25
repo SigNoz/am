@@ -63,8 +63,7 @@ func NewPostAlertsOK() *PostAlertsOK {
 	return &PostAlertsOK{}
 }
 
-/*
-PostAlertsOK describes a response with status code 200, with default header values.
+/* PostAlertsOK describes a response with status code 200, with default header values.
 
 Create alerts response
 */
@@ -114,8 +113,7 @@ func NewPostAlertsBadRequest() *PostAlertsBadRequest {
 	return &PostAlertsBadRequest{}
 }
 
-/*
-PostAlertsBadRequest describes a response with status code 400, with default header values.
+/* PostAlertsBadRequest describes a response with status code 400, with default header values.
 
 Bad request
 */
@@ -151,11 +149,6 @@ func (o *PostAlertsBadRequest) IsCode(code int) bool {
 func (o *PostAlertsBadRequest) Error() string {
 	return fmt.Sprintf("[POST /alerts][%d] postAlertsBadRequest  %+v", 400, o.Payload)
 }
-
-func (o *PostAlertsBadRequest) String() string {
-	return fmt.Sprintf("[POST /alerts][%d] postAlertsBadRequest  %+v", 400, o.Payload)
-}
-
 func (o *PostAlertsBadRequest) GetPayload() string {
 	return o.Payload
 }
@@ -175,8 +168,7 @@ func NewPostAlertsInternalServerError() *PostAlertsInternalServerError {
 	return &PostAlertsInternalServerError{}
 }
 
-/*
-PostAlertsInternalServerError describes a response with status code 500, with default header values.
+/* PostAlertsInternalServerError describes a response with status code 500, with default header values.
 
 Internal server error
 */
@@ -212,11 +204,6 @@ func (o *PostAlertsInternalServerError) IsCode(code int) bool {
 func (o *PostAlertsInternalServerError) Error() string {
 	return fmt.Sprintf("[POST /alerts][%d] postAlertsInternalServerError  %+v", 500, o.Payload)
 }
-
-func (o *PostAlertsInternalServerError) String() string {
-	return fmt.Sprintf("[POST /alerts][%d] postAlertsInternalServerError  %+v", 500, o.Payload)
-}
-
 func (o *PostAlertsInternalServerError) GetPayload() string {
 	return o.Payload
 }

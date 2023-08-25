@@ -30,6 +30,7 @@ import (
 	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v2"
 
+	"github.com/prometheus/alertmanager/constants"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/timeinterval"
 )
@@ -168,6 +169,7 @@ func (s *SecretURL) UnmarshalJSON(data []byte) error {
 }
 
 // Load parses the YAML input s into a Config.
+// amol/signoz 22/03/2022 - used only by test cases
 func Load(s string) (*Config, error) {
 	cfg := &Config{}
 	err := yaml.UnmarshalStrict([]byte(s), cfg)
@@ -187,10 +189,12 @@ func Load(s string) (*Config, error) {
 	}
 
 	cfg.original = s
+
 	return cfg, nil
 }
 
 // LoadFile parses the given YAML file into a Config.
+// amol/signoz 22/03/2022 - used only by test cases
 func LoadFile(filename string) (*Config, error) {
 	content, err := os.ReadFile(filename)
 	if err != nil {
@@ -245,15 +249,6 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		for _, cfg := range receiver.SNSConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
-		for _, cfg := range receiver.TelegramConfigs {
-			cfg.HTTPConfig.SetDirectory(baseDir)
-		}
-		for _, cfg := range receiver.DiscordConfigs {
-			cfg.HTTPConfig.SetDirectory(baseDir)
-		}
-		for _, cfg := range receiver.WebexConfigs {
-			cfg.HTTPConfig.SetDirectory(baseDir)
-		}
 		for _, cfg := range receiver.MSTeamsConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
@@ -298,17 +293,73 @@ func (ti *TimeInterval) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // Config is the top-level configuration for Alertmanager's config files.
 type Config struct {
-	Global       *GlobalConfig `yaml:"global,omitempty" json:"global,omitempty"`
-	Route        *Route        `yaml:"route,omitempty" json:"route,omitempty"`
-	InhibitRules []InhibitRule `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
-	Receivers    []Receiver    `yaml:"receivers,omitempty" json:"receivers,omitempty"`
-	Templates    []string      `yaml:"templates" json:"templates"`
-	// Deprecated. Remove before v1.0 release.
+	Global       *GlobalConfig  `yaml:"global,omitempty" json:"global,omitempty"`
+	Route        *Route         `yaml:"route,omitempty" json:"route,omitempty"`
+	InhibitRules []*InhibitRule `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
+	Receivers    []*Receiver    `yaml:"receivers,omitempty" json:"receivers,omitempty"`
+	// todo: templates will need a base directory mapping
+	// as earlier version depended on the yaml file path to determine
+	// base dir but we no longer use yaml file
+	Templates         []string           `yaml:"templates" json:"templates"`
 	MuteTimeIntervals []MuteTimeInterval `yaml:"mute_time_intervals,omitempty" json:"mute_time_intervals,omitempty"`
 	TimeIntervals     []TimeInterval     `yaml:"time_intervals,omitempty" json:"time_intervals,omitempty"`
 
 	// original is the input from which the config was parsed.
 	original string
+}
+
+type ConfigOpts struct {
+	ResolveTimeout *time.Duration
+	GroupInterval  *time.Duration
+	GroupWait      *time.Duration
+	RepeatInterval *time.Duration
+	GroupByStr     []string
+}
+
+// InitConfig returns a config at the time of initialization,
+// it does not however return a validated config. you must call
+// config.validate() to default and valdiate the params
+func InitConfig(opts *ConfigOpts) *Config {
+	global := DefaultGlobalConfig()
+
+	if opts.ResolveTimeout != nil {
+		global.ResolveTimeout = model.Duration(*opts.ResolveTimeout)
+	}
+
+	route := &Route{
+		Receiver: "default-receiver",
+	}
+
+	if len(opts.GroupByStr) > 0 {
+		route.GroupByStr = opts.GroupByStr
+	} else {
+		route.GroupByStr = []string{"alertname"}
+	}
+
+	if opts.GroupInterval != nil {
+		ginterval := model.Duration(*opts.GroupInterval)
+		route.GroupInterval = &ginterval
+	}
+
+	if opts.GroupWait != nil {
+		gwait := model.Duration(*opts.GroupWait)
+		route.GroupWait = &gwait
+	}
+
+	if opts.RepeatInterval != nil {
+		repeatint := model.Duration(*opts.RepeatInterval)
+		route.RepeatInterval = &repeatint
+	}
+
+	return &Config{
+		Global: &global,
+		Route:  route,
+		Receivers: []*Receiver{
+			&Receiver{
+				Name: "default-receiver",
+			},
+		},
+	}
 }
 
 func (c Config) String() string {
@@ -327,6 +378,37 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type plain Config
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
+	}
+
+	return c.Validate()
+}
+
+func (c *Config) SetOriginal() error {
+
+	if c == nil {
+		return nil
+	}
+
+	configBytes, err := json.Marshal(*c)
+	if err != nil {
+		return err
+	}
+	c.original = string(configBytes)
+	return nil
+}
+
+// Validate checks the config and self-corrects whenever possible
+func (c *Config) Validate() error {
+	// Check if we have a root route. We cannot check for it in the
+	// UnmarshalYAML method because it won't be called if the input is empty
+	// (e.g. the config file is empty or only contains whitespace).
+	if c.Route == nil {
+		return errors.New("no route provided in config")
+	}
+
+	// Check if continue in root route.
+	if c.Route.Continue {
+		return errors.New("cannot have continue in root route")
 	}
 
 	// If a global block was open but empty the default global config is overwritten.
@@ -362,8 +444,12 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			if wh.HTTPConfig == nil {
 				wh.HTTPConfig = c.Global.HTTPConfig
 			}
+			if err := wh.Validate(); err != nil {
+				return err
+			}
 		}
 		for _, ec := range rcv.EmailConfigs {
+
 			if ec.Smarthost.String() == "" {
 				if c.Global.SMTPSmarthost.String() == "" {
 					return fmt.Errorf("no global SMTP smarthost set")
@@ -396,6 +482,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				ec.RequireTLS = new(bool)
 				*ec.RequireTLS = c.Global.SMTPRequireTLS
 			}
+			if err := ec.Validate(); err != nil {
+				return err
+			}
 		}
 		for _, sc := range rcv.SlackConfigs {
 			if sc.HTTPConfig == nil {
@@ -407,6 +496,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				}
 				sc.APIURL = c.Global.SlackAPIURL
 				sc.APIURLFile = c.Global.SlackAPIURLFile
+			}
+
+			if err := sc.Validate(); err != nil {
+				return err
 			}
 		}
 		for _, poc := range rcv.PushoverConfigs {
@@ -502,35 +595,6 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				sns.HTTPConfig = c.Global.HTTPConfig
 			}
 		}
-
-		for _, telegram := range rcv.TelegramConfigs {
-			if telegram.HTTPConfig == nil {
-				telegram.HTTPConfig = c.Global.HTTPConfig
-			}
-			if telegram.APIUrl == nil {
-				telegram.APIUrl = c.Global.TelegramAPIUrl
-			}
-		}
-		for _, discord := range rcv.DiscordConfigs {
-			if discord.HTTPConfig == nil {
-				discord.HTTPConfig = c.Global.HTTPConfig
-			}
-			if discord.WebhookURL == nil {
-				return fmt.Errorf("no discord webhook URL provided")
-			}
-		}
-		for _, webex := range rcv.WebexConfigs {
-			if webex.HTTPConfig == nil {
-				webex.HTTPConfig = c.Global.HTTPConfig
-			}
-			if webex.APIURL == nil {
-				if c.Global.WebexAPIURL == nil {
-					return fmt.Errorf("no global Webex URL set")
-				}
-
-				webex.APIURL = c.Global.WebexAPIURL
-			}
-		}
 		for _, msteams := range rcv.MSTeamsConfigs {
 			if msteams.HTTPConfig == nil {
 				msteams.HTTPConfig = c.Global.HTTPConfig
@@ -558,8 +622,8 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("root route must not have any mute time intervals")
 	}
 
-	if len(c.Route.ActiveTimeIntervals) > 0 {
-		return fmt.Errorf("root route must not have any active time intervals")
+	if err := c.Route.Validate(); err != nil {
+		return err
 	}
 
 	// Validate that all receivers used in the routing tree are defined.
@@ -585,6 +649,98 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	return checkTimeInterval(c.Route, tiNames)
+}
+
+// AddRoute adds a new route to configuration.
+// the assumption is receiver can have max one route
+// This method is intended for local disk updates only
+func (c *Config) AddRoute(r *Route, rcv *Receiver) error {
+
+	if rcv == nil || r == nil {
+		return fmt.Errorf("adding a route requires both route and receiver")
+	}
+
+	if r.Receiver == "" || rcv.Name == "" {
+		return fmt.Errorf("receiver is mandatory in route and receiver")
+	}
+
+	// check that receiver name is not already used
+	for _, receiver := range c.Receivers {
+		if receiver.Name == rcv.Name || receiver.Name == r.Receiver {
+			return fmt.Errorf("the channel name has to be unique, please choose a different name")
+		}
+	}
+	// must set continue on route to allow subsequent
+	// routes to work. may have to rethink on this after
+	// adding matchers and filters in upstream
+	r.Continue = true
+
+	c.Route.Routes = append(c.Route.Routes, r)
+	c.Receivers = append(c.Receivers, rcv)
+	return nil
+}
+
+// EditRoute changes an existing route in configuration.
+// the assumption is receiver can have max one route
+// This method is intended for local disk updates only
+func (c *Config) EditRoute(r *Route, rcv *Receiver) error {
+
+	if rcv == nil || r == nil {
+		return fmt.Errorf("adding a route requires both route and receiver")
+	}
+
+	if r.Receiver == "" || rcv.Name == "" {
+		return fmt.Errorf("receiver is mandatory in route and receiver")
+	}
+
+	// find and update receiver
+	for i, receiver := range c.Receivers {
+		if receiver.Name == rcv.Name {
+			c.Receivers[i] = rcv
+		}
+	}
+
+	// assumption: the route hierarchy has max 1 level
+	// may have to rethink this after adding matchers and filters
+	// in upstream. presently we only have top level, no filter routes
+	routes := c.Route.Routes
+	for i, route := range routes {
+		if route.Receiver == r.Receiver {
+			c.Route.Routes[i] = r
+			break
+		}
+	}
+
+	return nil
+}
+
+// DeleteRoute deletes an existing route in the configuration.
+// the assumption is receiver can have max one route and
+// the route hierachy has max of 1 level
+// This method is intended for local disk file updates only (not in-memory updates)
+func (c *Config) DeleteRoute(name string) error {
+
+	if name == "" {
+		return fmt.Errorf("delete receiver requires the receiver name")
+	}
+
+	// assumption: the route hierarchy has max 1 level
+	routes := c.Route.Routes
+	for i, r := range routes {
+		if r.Receiver == name {
+			c.Route.Routes = append(routes[:i], routes[i+1:]...)
+			break
+		}
+	}
+
+	// find receiver and delete
+	for i, receiver := range c.Receivers {
+		if receiver.Name == name {
+			c.Receivers = append(c.Receivers[:i], c.Receivers[i+1:]...)
+			break
+		}
+	}
+	return nil
 }
 
 // checkReceiver returns an error if a node in the routing tree
@@ -627,11 +783,23 @@ func checkTimeInterval(r *Route, timeIntervals map[string]struct{}) error {
 
 // DefaultGlobalConfig returns GlobalConfig with default values.
 func DefaultGlobalConfig() GlobalConfig {
-	defaultHTTPConfig := commoncfg.DefaultHTTPClientConfig
-	return GlobalConfig{
-		ResolveTimeout: model.Duration(5 * time.Minute),
-		HTTPConfig:     &defaultHTTPConfig,
+	var defaultHTTPConfig = commoncfg.DefaultHTTPClientConfig
 
+	resolveMinutes := constants.GetOrDefaultEnvInt("ALERTMANAGER_RESOLVE_TIMEOUT", 5)
+	resolveTimeout := model.Duration(time.Duration(resolveMinutes) * time.Minute)
+
+	defaultSMTPSmarthost := HostPort{
+		Host: constants.GetOrDefaultEnv("ALERTMANAGER_SMTP_HOST", "localhost"),
+		Port: constants.GetOrDefaultEnv("ALERTMANAGER_SMTP_PORT", "25"),
+	}
+
+	defaultSMTPFrom := constants.GetOrDefaultEnv("ALERTMANAGER_SMTP_FROM", "alertmanager@signoz.io")
+
+	return GlobalConfig{
+		ResolveTimeout:  resolveTimeout,
+		HTTPConfig:      &defaultHTTPConfig,
+		SMTPSmarthost:   defaultSMTPSmarthost,
+		SMTPFrom:        defaultSMTPFrom,
 		SMTPHello:       "localhost",
 		SMTPRequireTLS:  true,
 		PagerdutyURL:    mustParseURL("https://events.pagerduty.com/v2/enqueue"),
@@ -741,29 +909,27 @@ type GlobalConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	SMTPFrom             string     `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
-	SMTPHello            string     `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
-	SMTPSmarthost        HostPort   `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
-	SMTPAuthUsername     string     `yaml:"smtp_auth_username,omitempty" json:"smtp_auth_username,omitempty"`
-	SMTPAuthPassword     Secret     `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
-	SMTPAuthPasswordFile string     `yaml:"smtp_auth_password_file,omitempty" json:"smtp_auth_password_file,omitempty"`
-	SMTPAuthSecret       Secret     `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
-	SMTPAuthIdentity     string     `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
-	SMTPRequireTLS       bool       `yaml:"smtp_require_tls" json:"smtp_require_tls,omitempty"`
-	SlackAPIURL          *SecretURL `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
-	SlackAPIURLFile      string     `yaml:"slack_api_url_file,omitempty" json:"slack_api_url_file,omitempty"`
-	PagerdutyURL         *URL       `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
-	OpsGenieAPIURL       *URL       `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
-	OpsGenieAPIKey       Secret     `yaml:"opsgenie_api_key,omitempty" json:"opsgenie_api_key,omitempty"`
-	OpsGenieAPIKeyFile   string     `yaml:"opsgenie_api_key_file,omitempty" json:"opsgenie_api_key_file,omitempty"`
-	WeChatAPIURL         *URL       `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
-	WeChatAPISecret      Secret     `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
-	WeChatAPICorpID      string     `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
-	VictorOpsAPIURL      *URL       `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
-	VictorOpsAPIKey      Secret     `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
-	VictorOpsAPIKeyFile  string     `yaml:"victorops_api_key_file,omitempty" json:"victorops_api_key_file,omitempty"`
-	TelegramAPIUrl       *URL       `yaml:"telegram_api_url,omitempty" json:"telegram_api_url,omitempty"`
-	WebexAPIURL          *URL       `yaml:"webex_api_url,omitempty" json:"webex_api_url,omitempty"`
+	SMTPFrom         string   `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
+	SMTPHello        string   `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
+	SMTPSmarthost    HostPort `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
+	SMTPAuthUsername string   `yaml:"smtp_auth_username,omitempty" json:"smtp_auth_username,omitempty"`
+	SMTPAuthPassword Secret   `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
+	SMTPAuthSecret   Secret   `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
+	SMTPAuthIdentity string   `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
+	SMTPRequireTLS   bool     `yaml:"smtp_require_tls" json:"smtp_require_tls,omitempty"`
+	// Changing from SecretURL to URL, for supporting persistence of
+	// runtime config changes
+	SlackAPIURL        *URL   `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
+	SlackAPIURLFile    string `yaml:"slack_api_url_file,omitempty" json:"slack_api_url_file,omitempty"`
+	PagerdutyURL       *URL   `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
+	OpsGenieAPIURL     *URL   `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
+	OpsGenieAPIKey     Secret `yaml:"opsgenie_api_key,omitempty" json:"opsgenie_api_key,omitempty"`
+	OpsGenieAPIKeyFile string `yaml:"opsgenie_api_key_file,omitempty" json:"opsgenie_api_key_file,omitempty"`
+	WeChatAPIURL       *URL   `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
+	WeChatAPISecret    Secret `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
+	WeChatAPICorpID    string `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
+	VictorOpsAPIURL    *URL   `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
+	VictorOpsAPIKey    Secret `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for GlobalConfig.
@@ -795,17 +961,34 @@ type Route struct {
 	RepeatInterval *model.Duration `yaml:"repeat_interval,omitempty" json:"repeat_interval,omitempty"`
 }
 
+// Key returns unique identification of route
+func (r *Route) Key() string {
+	return r.Receiver
+}
+
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Route.
 func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type plain Route
 	if err := unmarshal((*plain)(r)); err != nil {
 		return err
 	}
+	return r.Validate()
+}
+
+func (r *Route) Validate() error {
 
 	for k := range r.Match {
 		if !model.LabelNameRE.MatchString(k) {
 			return fmt.Errorf("invalid label name %q", k)
 		}
+	}
+
+	// make a dictionary of labels
+	groupBy := map[model.LabelName]struct{}{}
+
+	// popluate dictionary to de-dup labels
+	for _, ln := range r.GroupBy {
+		groupBy[ln] = struct{}{}
 	}
 
 	for _, l := range r.GroupByStr {
@@ -816,21 +999,17 @@ func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			if !labelName.IsValid() {
 				return fmt.Errorf("invalid label name %q in group_by list", l)
 			}
-			r.GroupBy = append(r.GroupBy, labelName)
+
+			if _, ok := groupBy[labelName]; !ok {
+				// found new label
+				r.GroupBy = append(r.GroupBy, labelName)
+				groupBy[labelName] = struct{}{}
+			}
 		}
 	}
 
 	if len(r.GroupBy) > 0 && r.GroupByAll {
 		return fmt.Errorf("cannot have wildcard group_by (`...`) and other other labels at the same time")
-	}
-
-	groupBy := map[model.LabelName]struct{}{}
-
-	for _, ln := range r.GroupBy {
-		if _, ok := groupBy[ln]; ok {
-			return fmt.Errorf("duplicated label %q in group_by", ln)
-		}
-		groupBy[ln] = struct{}{}
 	}
 
 	if r.GroupInterval != nil && time.Duration(*r.GroupInterval) == time.Duration(0) {
@@ -841,6 +1020,16 @@ func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	return nil
+}
+
+func (r *Route) Walk(visit func(*Route)) {
+	visit(r)
+	if r.Routes == nil {
+		return
+	}
+	for i := range r.Routes {
+		r.Routes[i].Walk(visit)
+	}
 }
 
 // InhibitRule defines an inhibition rule that mutes alerts that match the
@@ -905,9 +1094,23 @@ type Receiver struct {
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
 	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
 	SNSConfigs       []*SNSConfig       `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
-	TelegramConfigs  []*TelegramConfig  `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
-	WebexConfigs     []*WebexConfig     `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
-	MSTeamsConfigs   []*MSTeamsConfig   `yaml:"msteams_configs,omitempty" json:"teams_configs,omitempty"`
+	MSTeamsConfigs   []*MSTeamsConfig   `yaml:"msteams_configs,omitempty" json:"msteams_configs,omitempty"`
+}
+
+func (c *Receiver) Validate() error {
+	if c.Name == "" {
+		return fmt.Errorf("receiver name is mandatory")
+	}
+
+	if len(c.WebhookConfigs) > 0 {
+		for _, w := range c.WebhookConfigs {
+			if err := w.Validate(); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Receiver.

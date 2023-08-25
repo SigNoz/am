@@ -23,15 +23,16 @@ import (
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/constants"
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
 // DefaultRouteOpts are the defaulting routing options which apply
 // to the root route of a routing tree.
 var DefaultRouteOpts = RouteOpts{
-	GroupWait:         30 * time.Second,
-	GroupInterval:     5 * time.Minute,
-	RepeatInterval:    4 * time.Hour,
+	GroupWait:         constants.RouteOptsGroupWait(),
+	GroupInterval:     constants.RouteOptsGroupInterval(),
+	RepeatInterval:    constants.RouteOptsRepeatInterval(),
 	GroupBy:           map[model.LabelName]struct{}{},
 	GroupByAll:        false,
 	MuteTimeIntervals: []string{},
@@ -118,7 +119,8 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 	sort.Sort(matchers)
 
 	opts.MuteTimeIntervals = cr.MuteTimeIntervals
-	opts.ActiveTimeIntervals = cr.ActiveTimeIntervals
+
+	fmt.Println("RouteOpts:", opts)
 
 	route := &Route{
 		parent:    parent,
@@ -139,6 +141,29 @@ func NewRoutes(croutes []*config.Route, parent *Route) []*Route {
 		res = append(res, NewRoute(cr, parent))
 	}
 	return res
+}
+
+// MatchWithReceiver does Match() with labelset and also
+// filters based on the preferred receivers. Sometimes alerts may
+// have preferred receiver target and this function is used to
+// match only routes with preferred receiver on them
+func (r *Route) MatchWithReceiver(lset model.LabelSet, receivers []string) []*Route {
+	matched := r.Match(lset)
+	if len(matched) == 0 || len(receivers) == 0 {
+		return matched
+	}
+	var result []*Route
+
+	receiverMap := make(map[string]bool, len(receivers))
+	for _, r := range receivers {
+		receiverMap[r] = true
+	}
+	for _, m := range matched {
+		if receiverMap[m.RouteOpts.Receiver] {
+			result = append(result, m)
+		}
+	}
+	return result
 }
 
 // Match does a depth-first left-to-right search through the route tree
